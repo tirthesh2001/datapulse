@@ -1,0 +1,40 @@
+{{define "dashboard.html"}}
+<section>
+  <!-- Controls Card -->
+  <div class="controls-card">
+    <div class="controls-top">
+      <div class="mode-tabs">
+        <span class="mode-tab active" id="modeRange" onclick="setMode('range')">Date Range</span>
+        <span class="mode-tab" id="modePick" onclick="setMode('pick')">Pick Dates</span>
+      </div>
+    </div>
+
+    <div id="rangeControls" class="range-controls">
+      <div class="range-group">
+        <label for="startDate">From</label>
+        <input type="date" id="startDate" onchange="onRangeChange()">
+      </div>
+      <div class="range-group">
+        <label for="endDate">To</label>
+        <input type="date" id="endDate" onchange="onRangeChange()">
+      </div>
+    </div>
+
+    <div id="pickControls" style="display:none">
+      <div class="pick-filter">
+        <select id="pickMonth" class="form-input pick-month-select" onchange="onPickMonthChange()"></select>
+      </div>
+      <div id="dateChips" class="date-chips"></div>
+    </div>
+  </div>
+
+  <!-- Loader -->
+  <div id="loader" class="dp-loader">
+    <div class="spinner"></div>
+    <p>Generating tables…</p>
+  </div>
+
+  <!-- Tables -->
+  <div id="tablesContainer"></div>
+</section>
+{{end}}

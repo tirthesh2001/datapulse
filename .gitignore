@@ -1,0 +1,26 @@
+# Environment & secrets
+.env
+
+# Local email data
+UPI Email Reports/
+
+# Local widget config (stored in Supabase for production)
+config/widgets.json
+
+# IDE / editor
+.cursor/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Agent transcripts
+agent-transcripts/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Go build artifacts
+datapulse
+*.exe

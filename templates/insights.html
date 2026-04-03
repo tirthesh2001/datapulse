@@ -1,0 +1,20 @@
+{{define "insights.html"}}
+<div class="insights-panel fade-in" id="insightsPanel">
+  <h3>Insights</h3>
+  <div id="insightsContent">
+    {{range .Items}}
+    <div class="insight-item"><strong>{{.Title}}:</strong> {{.Body}}</div>
+    {{end}}
+  </div>
+  <div class="insights-actions">
+    <span class="action-btn" onclick="copyInsights()" role="button">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+      Copy
+    </span>
+    <span class="action-btn" onclick="exportPNG('insightsPanel','Insights')" role="button">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Export PNG
+    </span>
+  </div>
+</div>
+{{end}}

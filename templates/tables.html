@@ -1,0 +1,96 @@
+{{define "tables.html"}}
+<div class="fade-in">
+
+  {{range .Widgets}}
+  <div class="table-section" id="widget-{{.ID}}">
+    <div class="table-toolbar">
+      <h3 class="widget-label" data-widget-id="{{.ID}}">{{.Label}}</h3>
+      <div class="widget-actions">
+        <span class="action-btn widget-edit-btn" onclick="openWidgetEditor('{{.ID}}')" role="button" title="Edit widget">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="13" height="13"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+          Edit
+        </span>
+        <span class="action-btn" onclick="exportPNG('wrap-{{.ID}}','{{.Label}}')" role="button">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Export PNG
+        </span>
+      </div>
+    </div>
+    <div class="table-center">
+      <div class="table-wrap" id="wrap-{{.ID}}">
+        <table>
+          {{range $si, $sec := .Sections}}
+          {{if $sec.IsSub}}
+          <tbody>
+            <tr class="section-hdr">
+              <td>{{index $sec.Headers 0}}</td>
+              {{if gt $sec.SpanWidth 2}}
+              <td colspan="{{sub $sec.SpanWidth 2}}">{{if $sec.Label}}{{$sec.Label}}{{else}}{{if gt (len $sec.Headers) 1}}{{index $sec.Headers 1}}{{end}}{{end}}</td>
+              <td>{{if gt (len $sec.Headers) 2}}{{index $sec.Headers (sub (len $sec.Headers) 1)}}{{end}}</td>
+              {{else}}
+              {{if gt (len $sec.Headers) 1}}<td>{{index $sec.Headers 1}}</td>{{end}}
+              {{if gt (len $sec.Headers) 2}}<td>{{index $sec.Headers 2}}</td>{{end}}
+              {{end}}
+            </tr>
+            {{range $sec.Rows}}
+            <tr>
+              {{range $ci, $cell := .}}
+              {{if eq $ci 0}}
+              <td style="text-align:center">{{$cell}}</td>
+              {{else if eq $ci (sub (len .) 1)}}
+              <td class="num">{{$cell}}</td>
+              {{else}}
+              {{if gt $sec.SpanWidth 2}}
+              <td colspan="{{sub $sec.SpanWidth 2}}" style="text-align:left;white-space:normal;font-weight:400">{{$cell}}</td>
+              {{else}}
+              <td style="text-align:left;white-space:normal;font-weight:400">{{$cell}}</td>
+              {{end}}
+              {{end}}
+              {{end}}
+            </tr>
+            {{end}}
+          </tbody>
+          {{else}}
+          <thead>
+            <tr>
+              {{range $sec.Headers}}
+              <th>{{.}}</th>
+              {{end}}
+            </tr>
+          </thead>
+          <tbody>
+            {{range $sec.Rows}}
+            <tr>
+              {{range $ci, $cell := .}}
+              <td {{if gt $ci 0}}class="num"{{end}}>{{safeHTML $cell}}</td>
+              {{end}}
+            </tr>
+            {{end}}
+          </tbody>
+          {{end}}
+          {{end}}
+        </table>
+      </div>
+    </div>
+  </div>
+  {{end}}
+
+  <!-- Insights Trigger -->
+  <div class="insights-trigger" id="insightsTrigger">
+    <span class="insights-trigger-btn" onclick="loadInsights()" role="button">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      Generate Insights
+    </span>
+  </div>
+  <div id="insightsContainer"></div>
+
+  <!-- Add Widget Button -->
+  <div class="add-widget-trigger">
+    <span class="insights-trigger-btn" onclick="openAddWidget()" role="button">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      Add Widget
+    </span>
+  </div>
+
+</div>
+{{end}}

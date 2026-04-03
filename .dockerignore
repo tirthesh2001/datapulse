@@ -1,0 +1,8 @@
+UPI Email Reports/
+config/
+.env
+.git
+cmd/debug/
+*.md
+agent-transcripts/
+.cursor/

@@ -542,6 +542,17 @@ select.form-input { cursor: pointer; }
 
 .bulk-progress { font-size: 13px; margin-bottom: 8px; color: var(--dp-text); }
 
+.msg-warn { padding: 10px 14px; border-radius: 8px; font-size: 13px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; text-align: left; }
+[data-theme="dark"] .msg-warn { background: #422006; color: #fde68a; border-color: #92400e; }
+
+.bulk-summary { font-size: 13px; margin-bottom: 10px; padding: 10px 14px; border-radius: 8px; background: var(--dp-bg-muted, #f3f4f6); color: var(--dp-text); }
+[data-theme="dark"] .bulk-summary { background: rgba(255,255,255,.05); }
+
+.bulk-results { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.bulk-results .msg-ok,
+.bulk-results .msg-err,
+.bulk-results .msg-warn { text-align: left; padding: 8px 12px; font-size: 12.5px; }
+
 /* ── Meta bar, auth, cold start ─────────────────────────── */
 .dp-meta-bar {
   display: flex !important; flex-wrap: wrap; align-items: center; gap: 12px 16px;

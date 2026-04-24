@@ -832,44 +832,65 @@ function handleFileSelect(files) {
 
 async function uploadBulkSequential(files) {
   const statusEl = document.getElementById('uploadStatus');
-  let ok = 0;
-  let fail = 0;
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    statusEl.innerHTML = `<div class="bulk-progress">Uploading ${i + 1} / ${files.length}: <strong>${esc(file.name)}</strong>…</div>`;
-    const form = new FormData();
-    form.append('file', file);
-    try {
-      const res = await apiFetch('/upload', { method: 'POST', body: form });
-      const data = await res.json();
-      if (data.error) {
-        fail++;
-        statusEl.innerHTML += `<div class="msg-err">${esc(data.error)}</div>`;
-        continue;
-      }
-      if (data.conflict) {
-        fail++;
-        statusEl.innerHTML += `<div class="msg-err">Skipped (date conflict): ${esc(file.name)} — upload alone to replace</div>`;
-        continue;
-      }
-      ok++;
-      if (data.dates) {
-        availableDates = data.dates;
-        setupRangeInputs();
-        updatePickFilter();
-        renderDateChips();
-      }
-    } catch (err) {
-      fail++;
-      statusEl.innerHTML += `<div class="msg-err">${esc(err.message)}</div>`;
+  statusEl.innerHTML = `
+    <div class="dp-loader active" style="padding:12px 0">
+      <div class="spinner"></div>
+      <p>Uploading ${files.length} file${files.length === 1 ? '' : 's'}…</p>
+    </div>
+  `;
+
+  const form = new FormData();
+  for (const f of files) form.append('files', f);
+
+  try {
+    const res = await apiFetch('/upload/bulk', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.innerHTML = `<div class="msg-err">${esc(data.error || 'Bulk upload failed')}</div>`;
+      return;
     }
+
+    const results = Array.isArray(data.results) ? data.results : [];
+    let ok = 0, conflict = 0, fail = 0;
+    const rows = results.map(r => {
+      let cls = 'msg-err';
+      if (r.status === 'ok') { ok++; cls = 'msg-ok'; }
+      else if (r.status === 'conflict') { conflict++; cls = 'msg-warn'; }
+      else { fail++; }
+      const detail = r.status === 'ok'
+        ? `uploaded for ${esc(r.date || '')}`
+        : r.status === 'conflict'
+        ? `date conflict for ${esc(r.date || '')} — upload alone to replace`
+        : esc(r.error || r.status);
+      return `<div class="${cls}"><strong>${esc(r.file || '')}</strong> — ${detail}</div>`;
+    }).join('');
+
+    statusEl.innerHTML = `
+      <div class="bulk-summary">
+        <strong>${ok}</strong> uploaded
+        ${conflict ? `· <strong>${conflict}</strong> conflict${conflict === 1 ? '' : 's'}` : ''}
+        ${fail ? `· <strong>${fail}</strong> failed` : ''}
+      </div>
+      <div class="bulk-results">${rows}</div>
+    `;
+
+    if (data.dates) {
+      availableDates = data.dates;
+      setupRangeInputs();
+      updatePickFilter();
+      renderDateChips();
+    }
+
+    showToast(`Bulk upload: ${ok} ok, ${conflict} conflict, ${fail} failed`, fail > 0);
+    if (ok > 0) {
+      setTimeout(() => {
+        closeModal();
+        refreshData();
+      }, conflict + fail > 0 ? 2200 : 900);
+    }
+  } catch (err) {
+    statusEl.innerHTML = `<div class="msg-err">Upload failed: ${esc(err.message)}</div>`;
   }
-  statusEl.innerHTML += `<div class="msg-ok">Finished: ${ok} uploaded, ${fail} skipped or failed</div>`;
-  showToast(`Bulk upload: ${ok} ok, ${fail} skipped/failed`);
-  setTimeout(() => {
-    closeModal();
-    if (ok > 0) refreshData();
-  }, 900);
 }
 
 async function uploadFile(file, replace) {

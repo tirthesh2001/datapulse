@@ -230,12 +230,12 @@ body {
 /* ── Controls Card ───────────────────────────────────────── */
 .controls-card {
   background: var(--dp-card); border: 1px solid var(--dp-border);
-  border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;
+  border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 .controls-top {
   display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 12px;
 }
 .mode-tabs { display: inline-flex; border-radius: 8px; overflow: hidden; border: 1px solid var(--dp-border); }
 .mode-tab {
@@ -260,14 +260,15 @@ body {
 }
 .generate-btn:hover { background: var(--dp-accent-h) !important; }
 
-.range-controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.range-group { display: flex; align-items: center; gap: 8px; }
-.range-group label { font-size: 12px; font-weight: 700; color: var(--dp-muted); text-transform: uppercase; letter-spacing: .04em; margin: 0 !important; }
+.range-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.range-group { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; }
+.range-group label { font-size: 11px; font-weight: 700; color: var(--dp-muted); text-transform: uppercase; letter-spacing: .04em; margin: 0 !important; }
 .range-group select,
 .range-group input[type="date"] {
-  padding: 6px 12px !important; font-size: 13px !important; border-radius: 6px !important;
+  padding: 6px 10px !important; font-size: 13px !important; border-radius: 6px !important;
   border: 1px solid var(--dp-border) !important; background: var(--dp-card) !important;
   color: var(--dp-text) !important; margin: 0 !important; width: auto !important;
+  max-width: 170px !important;
   cursor: pointer !important; appearance: auto !important; -webkit-appearance: auto !important;
   margin-bottom: 0 !important;
 }
@@ -555,12 +556,12 @@ select.form-input { cursor: pointer; }
 
 /* ── Meta bar, auth, cold start ─────────────────────────── */
 .dp-meta-bar {
-  display: flex !important; flex-wrap: wrap; align-items: center; gap: 12px 16px;
-  margin-bottom: 16px !important; padding: 10px 14px !important;
+  display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  margin-bottom: 14px !important; padding: 8px 14px !important;
   background: var(--dp-card) !important; border: 1px solid var(--dp-border) !important; border-radius: 10px;
   font-size: 13px;
 }
-.freshness-badge { color: var(--dp-muted); flex: 1; min-width: 180px; line-height: 1.4; margin: 0 !important; }
+.freshness-badge { color: var(--dp-muted); flex: 0 1 auto; min-width: 0; line-height: 1.4; margin: 0 !important; margin-right: auto !important; }
 .preset-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .preset-btn {
   all: unset !important;
@@ -663,11 +664,11 @@ select.form-input { cursor: pointer; }
 
   .dp-main { padding: 14px 12px 32px; }
 
-  .controls-card { padding: 14px 16px; }
-  .controls-top { flex-direction: column; align-items: stretch; gap: 10px; }
-  .range-controls { flex-direction: column; gap: 10px; }
-  .range-group { width: 100%; }
-  .range-group select, .range-group input[type="date"] { flex: 1; }
+  .controls-card { padding: 12px 14px; }
+  .controls-top { align-items: stretch; gap: 10px; }
+  .range-controls { gap: 10px; }
+  .range-group { flex: 1 1 140px; }
+  .range-group select, .range-group input[type="date"] { flex: 1; max-width: none !important; }
 
   .mode-tab { padding: 6px 14px; font-size: 12px; }
 

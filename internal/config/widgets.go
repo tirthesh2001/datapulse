@@ -159,6 +159,11 @@ func (ws *WidgetStore) Update(cfg WidgetConfig) error {
 	return ws.save()
 }
 
+// ValidateWidgetConfig checks widget JSON invariants.
+func ValidateWidgetConfig(cfg WidgetConfig) error {
+	return validateConfig(cfg)
+}
+
 func validateConfig(cfg WidgetConfig) error {
 	ids := make(map[string]bool)
 	for _, w := range cfg.Widgets {
@@ -185,6 +190,11 @@ func validateConfig(cfg WidgetConfig) error {
 		}
 	}
 	return nil
+}
+
+// DefaultWidgetConfig returns the built-in dashboard layout (used for new users / empty DB).
+func DefaultWidgetConfig() WidgetConfig {
+	return defaultWidgetConfig()
 }
 
 func defaultWidgetConfig() WidgetConfig {

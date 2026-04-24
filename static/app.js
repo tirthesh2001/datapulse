@@ -5,20 +5,228 @@ let currentDatesKey = '';
 let widgetConfig = null;
 let availableSources = null;
 
+let dpSupabase = null;
+let accessToken = null;
+let lastSyncAt = null;
+
+function getBoot() {
+  try { return window.__DP_BOOT__ || {}; } catch (e) { return {}; }
+}
+
+function authHeaders() {
+  const h = {};
+  if (accessToken) h['Authorization'] = 'Bearer ' + accessToken;
+  return h;
+}
+
+async function apiFetch(url, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), ...authHeaders() };
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 120000);
+  if (!opts.signal) opts.signal = ctrl.signal;
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (e) {
+    const banner = document.getElementById('coldStartBanner');
+    if (banner) banner.style.display = 'flex';
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+  const banner = document.getElementById('coldStartBanner');
+  if (banner) {
+    if (res.status === 502 || res.status === 503) banner.style.display = 'flex';
+    else banner.style.display = 'none';
+  }
+  return res;
+}
+
+function keyActivate(ev) {
+  if (ev.key === 'Enter' || ev.key === ' ') {
+    ev.preventDefault();
+    ev.target.click();
+  }
+}
+
+function syncUrlState() {
+  const params = new URLSearchParams();
+  params.set('mode', mode);
+  if (mode === 'range') {
+    const s = document.getElementById('startDate')?.value;
+    const e = document.getElementById('endDate')?.value;
+    if (s) params.set('start', s);
+    if (e) params.set('end', e);
+  } else {
+    const dates = Array.from(selectedDates).sort();
+    if (dates.length) params.set('dates', dates.join(','));
+  }
+  const q = params.toString();
+  history.replaceState(null, '', q ? '?' + q : window.location.pathname);
+}
+
+function readUrlState() {
+  const p = new URLSearchParams(window.location.search);
+  const m = p.get('mode');
+  if (m === 'pick' || m === 'range') {
+    mode = m;
+    document.getElementById('modeRange')?.classList.toggle('active', m === 'range');
+    document.getElementById('modePick')?.classList.toggle('active', m === 'pick');
+    document.getElementById('rangeControls').style.display = m === 'range' ? 'flex' : 'none';
+    document.getElementById('pickControls').style.display = m === 'pick' ? 'block' : 'none';
+  }
+  if (p.get('start')) document.getElementById('startDate').value = p.get('start');
+  if (p.get('end')) document.getElementById('endDate').value = p.get('end');
+  const ds = p.get('dates');
+  if (ds && mode === 'pick') {
+    ds.split(',').forEach(d => { if (d) selectedDates.add(d); });
+  }
+}
+
+function applyPreset(preset) {
+  if (!availableDates.length) return;
+  const minD = availableDates[0];
+  const maxD = availableDates[availableDates.length - 1];
+  if (preset === '7d') {
+    const end = maxD;
+    const startObj = new Date(end + 'T12:00:00');
+    startObj.setDate(startObj.getDate() - 6);
+    let start = startObj.toISOString().slice(0, 10);
+    if (start < minD) start = minD;
+    document.getElementById('startDate').value = start;
+    document.getElementById('endDate').value = end;
+    setMode('range');
+    onRangeChange();
+  } else if (preset === 'month') {
+    const end = new Date(maxD + 'T12:00:00');
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+    let s = start.toISOString().slice(0, 10);
+    if (s < minD) s = minD;
+    document.getElementById('startDate').value = s;
+    document.getElementById('endDate').value = maxD;
+    setMode('range');
+    onRangeChange();
+  } else if (preset === 'prevmonth') {
+    const end = new Date(maxD + 'T12:00:00');
+    const firstThis = new Date(end.getFullYear(), end.getMonth(), 1);
+    const lastPrev = new Date(firstThis);
+    lastPrev.setDate(0);
+    const firstPrev = new Date(lastPrev.getFullYear(), lastPrev.getMonth(), 1);
+    let s = firstPrev.toISOString().slice(0, 10);
+    let e = lastPrev.toISOString().slice(0, 10);
+    if (s < minD) s = minD;
+    if (e > maxD) e = maxD;
+    document.getElementById('startDate').value = s;
+    document.getElementById('endDate').value = e;
+    setMode('range');
+    onRangeChange();
+  }
+  syncUrlState();
+}
+
+function toggleDensity() {
+  const on = document.getElementById('densityToggle')?.checked;
+  document.documentElement.setAttribute('data-density', on ? 'compact' : 'comfortable');
+  localStorage.setItem('dp-density', on ? 'compact' : 'comfortable');
+}
+
+function updateFreshnessBadge() {
+  const el = document.getElementById('freshnessBadge');
+  if (!el) return;
+  const n = availableDates.length;
+  let t = lastSyncAt ? new Date(lastSyncAt).toLocaleString() : '—';
+  el.textContent = `Reports loaded: ${n} day(s) · Last sync: ${t}`;
+}
+
+async function initAuthUI() {
+  const boot = getBoot();
+  const bar = document.getElementById('authBar');
+  if (!boot.authEnabled) {
+    if (bar) bar.style.display = 'none';
+    return;
+  }
+  if (bar) bar.style.display = 'flex';
+  if (typeof supabase !== 'undefined' && boot.supabaseURL && boot.supabaseAnon) {
+    dpSupabase = supabase.createClient(boot.supabaseURL, boot.supabaseAnon);
+    const { data: { session } } = await dpSupabase.auth.getSession();
+    if (session) accessToken = session.access_token;
+    dpSupabase.auth.onAuthStateChange((_evt, sess) => {
+      accessToken = sess ? sess.access_token : null;
+      updateAuthBar();
+      loadWidgetConfig();
+    });
+  }
+  updateAuthBar();
+  document.getElementById('authSend')?.addEventListener('click', async () => {
+    const email = document.getElementById('authEmail')?.value?.trim();
+    if (!email || !dpSupabase) return;
+    const { error } = await dpSupabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+    if (error) showToast(error.message, true);
+    else showToast('Check your email for the sign-in link');
+  });
+  document.getElementById('authOut')?.addEventListener('click', async () => {
+    if (dpSupabase) await dpSupabase.auth.signOut();
+    accessToken = null;
+    updateAuthBar();
+  });
+}
+
+function updateAuthBar() {
+  const boot = getBoot();
+  if (!boot.authEnabled) return;
+  const st = document.getElementById('authStatus');
+  const out = document.getElementById('authOut');
+  const em = document.getElementById('authEmail');
+  const sn = document.getElementById('authSend');
+  if (accessToken) {
+    if (st) st.textContent = 'Signed in';
+    if (out) out.style.display = 'inline-block';
+    if (em) em.style.display = 'none';
+    if (sn) sn.style.display = 'none';
+  } else {
+    if (st) st.textContent = 'Sign in to save your personal dashboard layout';
+    if (out) out.style.display = 'none';
+    if (em) em.style.display = 'inline-block';
+    if (sn) sn.style.display = 'inline-block';
+  }
+}
+
 /* ── Init ────────────────────────────────────────────────── */
 function initApp(dates) {
   availableDates = dates || [];
+  const boot = getBoot();
+  if (boot.serverTime) lastSyncAt = boot.serverTime;
   loadPrefs();
+  const dens = localStorage.getItem('dp-density');
+  const dt = document.getElementById('densityToggle');
+  if (dens === 'compact' && dt) {
+    dt.checked = true;
+    document.documentElement.setAttribute('data-density', 'compact');
+  }
+  readUrlState();
   setupRangeInputs();
   updatePickFilter();
   if (availableDates.length > 0) {
     const minD = availableDates[0];
     const maxD = availableDates[availableDates.length - 1];
-    document.getElementById('startDate').value = minD;
-    document.getElementById('endDate').value = maxD;
-    onRangeChange();
+    if (!document.getElementById('startDate').value) document.getElementById('startDate').value = minD;
+    if (!document.getElementById('endDate').value) document.getElementById('endDate').value = maxD;
+    if (mode === 'range') onRangeChange();
+    if (mode === 'pick' && selectedDates.size > 0) {
+      renderDateChips();
+      loadTables();
+    }
   }
+  initAuthUI();
   loadWidgetConfig();
+  updateFreshnessBadge();
+  document.getElementById('coldStartRetry')?.addEventListener('click', () => {
+    if (selectedDates.size) loadTables();
+    else refreshData();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
 }
 
 /* ── Theme & Color ───────────────────────────────────────── */
@@ -56,6 +264,14 @@ document.addEventListener('click', e => {
   if (p && !e.target.closest('.settings-wrap')) p.classList.remove('open');
 });
 
+/* ── Page Tabs (Dashboard / Reports) ─────────────────────── */
+function switchPage(page) {
+  document.getElementById('pageDashboard').style.display = page === 'dashboard' ? '' : 'none';
+  document.getElementById('pageReports').style.display = page === 'reports' ? '' : 'none';
+  document.getElementById('tabDashboard').classList.toggle('active', page === 'dashboard');
+  document.getElementById('tabReports').classList.toggle('active', page === 'reports');
+}
+
 /* ── Mode Toggle ─────────────────────────────────────────── */
 function setMode(m) {
   mode = m;
@@ -71,6 +287,7 @@ function setMode(m) {
     updatePickFilter();
     renderDateChips();
   }
+  syncUrlState();
 }
 
 /* ── Calendar Date Inputs (Range View) ───────────────────── */
@@ -91,6 +308,7 @@ function onRangeChange() {
   const end = document.getElementById('endDate').value;
   selectedDates.clear();
   availableDates.forEach(d => { if (d >= start && d <= end) selectedDates.add(d); });
+  syncUrlState();
   loadTables();
 }
 
@@ -146,6 +364,7 @@ function renderDateChips() {
 function toggleDate(d) {
   selectedDates.has(d) ? selectedDates.delete(d) : selectedDates.add(d);
   renderDateChips();
+  syncUrlState();
   if (selectedDates.size > 0) loadTables();
 }
 
@@ -158,19 +377,22 @@ async function loadTables() {
     availableDates.forEach(d => { if (d >= start && d <= end) selectedDates.add(d); });
   }
   const dates = Array.from(selectedDates).sort();
-  if (!dates.length) return;
+  const loader = document.getElementById('loader');
+  if (!dates.length) {
+    if (loader) loader.classList.remove('active');
+    return;
+  }
 
   const key = dates.join(',');
   if (key === currentDatesKey) return;
   currentDatesKey = key;
 
-  const loader = document.getElementById('loader');
   const box = document.getElementById('tablesContainer');
   box.innerHTML = '';
   loader.classList.add('active');
 
   try {
-    const res = await fetch('/tables', {
+    const res = await apiFetch('/tables', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ dates: key }).toString()
@@ -191,10 +413,11 @@ async function refreshData() {
   btn.classList.add('spinning');
 
   try {
-    const res = await fetch('/refresh', { method: 'POST' });
+    const res = await apiFetch('/refresh', { method: 'POST' });
     if (!res.ok) throw new Error('Refresh failed');
     const data = await res.json();
     availableDates = data.dates || [];
+    lastSyncAt = data.at || new Date().toISOString();
     selectedDates.clear();
     currentDatesKey = '';
     setupRangeInputs();
@@ -205,6 +428,7 @@ async function refreshData() {
       document.getElementById('endDate').value = availableDates[availableDates.length - 1];
       if (mode === 'range') onRangeChange();
     }
+    updateFreshnessBadge();
     showToast('Data refreshed — ' + availableDates.length + ' report(s)');
   } catch (err) {
     showToast('Refresh failed: ' + err.message, true);
@@ -245,10 +469,11 @@ async function loadInsights() {
   box.innerHTML = '<div class="dp-loader active"><div class="spinner"></div><p>Analyzing data…</p></div>';
 
   try {
-    const res = await fetch('/insights', {
+    const tmpl = document.getElementById('insightTemplate')?.value || 'executive';
+    const res = await apiFetch('/insights', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ dates: dates.join(',') }).toString()
+      body: new URLSearchParams({ dates: dates.join(','), template: tmpl }).toString()
     });
     if (!res.ok) throw new Error(await res.text() || 'Failed');
     box.innerHTML = await res.text();
@@ -276,7 +501,7 @@ function copyInsights() {
 
 async function loadWidgetConfig() {
   try {
-    const res = await fetch('/api/config');
+    const res = await apiFetch('/api/config');
     if (res.ok) widgetConfig = await res.json();
   } catch (e) { /* ignore */ }
 }
@@ -284,7 +509,7 @@ async function loadWidgetConfig() {
 async function loadSources() {
   if (availableSources) return availableSources;
   try {
-    const res = await fetch('/api/sources');
+    const res = await apiFetch('/api/sources');
     if (res.ok) availableSources = await res.json();
   } catch (e) { /* ignore */ }
   return availableSources || {};
@@ -292,7 +517,7 @@ async function loadSources() {
 
 async function saveWidgetConfig() {
   try {
-    const res = await fetch('/api/config', {
+    const res = await apiFetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(widgetConfig)
@@ -536,6 +761,34 @@ function showToast(msg, isError) {
 let pendingUploadFile = null;
 let pendingUploadDate = null;
 
+async function openUploadHistoryModal() {
+  document.getElementById('modalTitle').textContent = 'Upload history';
+  document.getElementById('modalBody').innerHTML = '<div class="dp-loader active"><div class="spinner"></div><p>Loading…</p></div>';
+  document.getElementById('modalFooter').innerHTML = '';
+  openModal();
+  try {
+    const res = await apiFetch('/api/uploads');
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('modalBody').innerHTML =
+        `<div class="msg-err">${esc(data.error || 'Failed to load upload history')}</div>`;
+      return;
+    }
+    if (!Array.isArray(data) || data.length === 0) {
+      document.getElementById('modalBody').innerHTML = '<p style="color:var(--dp-muted)">No uploads recorded.</p>';
+      return;
+    }
+    const rows = data.map(u => {
+      const t = u.uploaded_at ? new Date(u.uploaded_at).toLocaleString() : '—';
+      return `<tr><td>${esc(u.filename || '')}</td><td>${esc(u.report_date || '')}</td><td class="num">${esc(String(u.size_raw ?? ''))}</td><td>${esc(t)}</td></tr>`;
+    }).join('');
+    document.getElementById('modalBody').innerHTML =
+      `<div class="table-wrap upload-history-wrap"><table><thead><tr><th>File</th><th>Report date</th><th>Size (bytes)</th><th>Uploaded</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  } catch (e) {
+    document.getElementById('modalBody').innerHTML = `<div class="msg-err">${esc(e.message)}</div>`;
+  }
+}
+
 function openUploadModal() {
   document.getElementById('modalTitle').textContent = 'Upload EML Report';
   document.getElementById('modalBody').innerHTML = `
@@ -543,8 +796,8 @@ function openUploadModal() {
       <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:var(--dp-muted)">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
       </svg>
-      <p>Drag & drop <strong>.eml</strong> file here<br><small>or click to browse</small></p>
-      <input type="file" id="uploadFileInput" accept=".eml" style="display:none" onchange="handleFileSelect(this.files)">
+      <p>Drag & drop <strong>.eml</strong> file(s) here<br><small>or click to browse (multiple allowed)</small></p>
+      <input type="file" id="uploadFileInput" accept=".eml" multiple style="display:none" onchange="handleFileSelect(this.files)">
     </div>
     <div id="uploadStatus" style="margin-top:12px"></div>
   `;
@@ -565,12 +818,58 @@ function openUploadModal() {
 
 function handleFileSelect(files) {
   if (!files || files.length === 0) return;
-  const file = files[0];
-  if (!file.name.toLowerCase().endsWith('.eml')) {
+  const list = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.eml'));
+  if (list.length === 0) {
     showToast('Only .eml files are accepted', true);
     return;
   }
-  uploadFile(file, false);
+  if (list.length === 1) {
+    uploadFile(list[0], false);
+    return;
+  }
+  uploadBulkSequential(list);
+}
+
+async function uploadBulkSequential(files) {
+  const statusEl = document.getElementById('uploadStatus');
+  let ok = 0;
+  let fail = 0;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    statusEl.innerHTML = `<div class="bulk-progress">Uploading ${i + 1} / ${files.length}: <strong>${esc(file.name)}</strong>…</div>`;
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await apiFetch('/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.error) {
+        fail++;
+        statusEl.innerHTML += `<div class="msg-err">${esc(data.error)}</div>`;
+        continue;
+      }
+      if (data.conflict) {
+        fail++;
+        statusEl.innerHTML += `<div class="msg-err">Skipped (date conflict): ${esc(file.name)} — upload alone to replace</div>`;
+        continue;
+      }
+      ok++;
+      if (data.dates) {
+        availableDates = data.dates;
+        setupRangeInputs();
+        updatePickFilter();
+        renderDateChips();
+      }
+    } catch (err) {
+      fail++;
+      statusEl.innerHTML += `<div class="msg-err">${esc(err.message)}</div>`;
+    }
+  }
+  statusEl.innerHTML += `<div class="msg-ok">Finished: ${ok} uploaded, ${fail} skipped or failed</div>`;
+  showToast(`Bulk upload: ${ok} ok, ${fail} skipped/failed`);
+  setTimeout(() => {
+    closeModal();
+    if (ok > 0) refreshData();
+  }, 900);
 }
 
 async function uploadFile(file, replace) {
@@ -583,7 +882,7 @@ async function uploadFile(file, replace) {
   if (replace) form.append('replace', 'true');
 
   try {
-    const res = await fetch('/upload', { method: 'POST', body: form });
+    const res = await apiFetch('/upload', { method: 'POST', body: form });
     const data = await res.json();
 
     if (data.error) {

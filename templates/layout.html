@@ -11,17 +11,30 @@
 <body>
 
   <!-- ── Navbar ── -->
-  <nav class="dp-nav">
+  <div id="coldStartBanner" class="cold-start-banner" style="display:none" role="status">
+    <span>Waking up service…</span> <button type="button" class="linkish" id="coldStartRetry">Retry</button>
+  </div>
+  <div id="authBar" class="auth-bar" style="display:none">
+    <span id="authStatus"></span>
+    <input type="email" id="authEmail" class="form-input" placeholder="Email for magic link" autocomplete="email">
+    <button type="button" class="generate-btn" id="authSend">Send link</button>
+    <button type="button" class="action-btn" id="authOut" style="display:none">Sign out</button>
+  </div>
+
+  <nav class="dp-nav" aria-label="Main">
     <div class="brand">
       <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
       DataPulse <small>UPI Dashboard</small>
     </div>
     <div class="nav-actions">
-      <span class="nav-icon-btn" onclick="openUploadModal()" role="button" title="Upload Report">
+      <span class="nav-icon-btn" onclick="openUploadHistoryModal()" role="button" tabindex="0" aria-label="Upload history" title="Upload history" onkeydown="keyActivate(event)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </span>
+      <span class="nav-icon-btn" onclick="openUploadModal()" role="button" tabindex="0" aria-label="Upload report" title="Upload Report" onkeydown="keyActivate(event)">
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
       </span>
       <div class="settings-wrap">
-        <span class="nav-icon-btn" onclick="toggleSettings(event)" role="button" title="Settings">
+        <span class="nav-icon-btn" onclick="toggleSettings(event)" role="button" tabindex="0" aria-label="Settings" title="Settings" onkeydown="keyActivate(event)">
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
         </span>
         <div class="settings-panel" id="settingsPanel">
@@ -40,7 +53,7 @@
           </div>
         </div>
       </div>
-      <span class="nav-icon-btn" id="refreshBtn" onclick="refreshData()" role="button" title="Refresh Data">
+      <span class="nav-icon-btn" id="refreshBtn" onclick="refreshData()" role="button" tabindex="0" aria-label="Refresh data" title="Refresh Data" onkeydown="keyActivate(event)">
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
       </span>
     </div>
@@ -66,7 +79,9 @@
   <!-- ── Toast ── -->
   <div class="toast" id="toast"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>window.__DP_BOOT__ = {{.BootJSON}};</script>
   <script src="/static/app.js"></script>
-  <script>initApp({{.AvailableDates}});</script>
+  <script>initApp({{.AvailableDatesJSON}});</script>
 </body>
 </html>

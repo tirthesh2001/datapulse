@@ -32,6 +32,7 @@ type DayReport struct {
 // StorageBackend is implemented by supabase storage for production mode.
 type StorageBackend interface {
 	LoadAllEmails() (map[string][]byte, error)
+	LoadEmailsForDates(dates []string) (map[string][]byte, error)
 }
 
 type Store struct {
@@ -111,6 +112,29 @@ func (s *Store) refreshFromBackend() error {
 	s.mu.Lock()
 	s.reports = newReports
 	s.mu.Unlock()
+	return nil
+}
+
+// MergeFromBackendDates loads and parses only the given report dates (cloud mode).
+func (s *Store) MergeFromBackendDates(dates []string) error {
+	if s.backend == nil {
+		return fmt.Errorf("merge requires cloud storage backend")
+	}
+	emails, err := s.backend.LoadEmailsForDates(dates)
+	if err != nil {
+		return fmt.Errorf("loading emails: %w", err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for date, raw := range emails {
+		report, err := ParseEMLBytes(raw)
+		if err != nil {
+			fmt.Printf("warning: skipping %s: %v\n", date, err)
+			continue
+		}
+		key := report.Date.Format("2006-01-02")
+		s.reports[key] = report
+	}
 	return nil
 }
 

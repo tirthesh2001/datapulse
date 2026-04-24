@@ -1,40 +1,71 @@
 {{define "dashboard.html"}}
 <section>
-  <!-- Controls Card -->
-  <div class="controls-card">
-    <div class="controls-top">
-      <div class="mode-tabs">
-        <span class="mode-tab active" id="modeRange" onclick="setMode('range')">Date Range</span>
-        <span class="mode-tab" id="modePick" onclick="setMode('pick')">Pick Dates</span>
-      </div>
-    </div>
-
-    <div id="rangeControls" class="range-controls">
-      <div class="range-group">
-        <label for="startDate">From</label>
-        <input type="date" id="startDate" onchange="onRangeChange()">
-      </div>
-      <div class="range-group">
-        <label for="endDate">To</label>
-        <input type="date" id="endDate" onchange="onRangeChange()">
-      </div>
-    </div>
-
-    <div id="pickControls" style="display:none">
-      <div class="pick-filter">
-        <select id="pickMonth" class="form-input pick-month-select" onchange="onPickMonthChange()"></select>
-      </div>
-      <div id="dateChips" class="date-chips"></div>
-    </div>
+  <!-- Top-level page tabs -->
+  <div class="page-tabs" id="pageTabs">
+    <span class="page-tab active" id="tabDashboard" onclick="switchPage('dashboard')">Dashboard</span>
+    <span class="page-tab" id="tabReports" onclick="switchPage('reports')">Reports</span>
   </div>
 
-  <!-- Loader -->
-  <div id="loader" class="dp-loader">
-    <div class="spinner"></div>
-    <p>Generating tables…</p>
+  <!-- Dashboard page -->
+  <div id="pageDashboard">
+    <div class="dp-meta-bar no-print" id="dpMetaBar">
+      <span id="freshnessBadge" class="freshness-badge"></span>
+      <div class="preset-btns">
+        <button type="button" class="preset-btn" onclick="applyPreset('7d')">Last 7 days</button>
+        <button type="button" class="preset-btn" onclick="applyPreset('month')">This month</button>
+        <button type="button" class="preset-btn" onclick="applyPreset('prevmonth')">Last month</button>
+      </div>
+      <label class="density-label"><input type="checkbox" id="densityToggle" onchange="toggleDensity()"> Compact rows</label>
+    </div>
+
+    <!-- Controls Card -->
+    <div class="controls-card">
+      <div class="controls-top">
+        <div class="mode-tabs">
+          <span class="mode-tab active" id="modeRange" onclick="setMode('range')">Date Range</span>
+          <span class="mode-tab" id="modePick" onclick="setMode('pick')">Pick Dates</span>
+        </div>
+      </div>
+
+      <div id="rangeControls" class="range-controls">
+        <div class="range-group">
+          <label for="startDate">From</label>
+          <input type="date" id="startDate" onchange="onRangeChange()">
+        </div>
+        <div class="range-group">
+          <label for="endDate">To</label>
+          <input type="date" id="endDate" onchange="onRangeChange()">
+        </div>
+      </div>
+
+      <div id="pickControls" style="display:none">
+        <div class="pick-filter">
+          <select id="pickMonth" class="form-input pick-month-select" onchange="onPickMonthChange()"></select>
+        </div>
+        <div id="dateChips" class="date-chips"></div>
+      </div>
+    </div>
+
+    <!-- Loader -->
+    <div id="loader" class="dp-loader">
+      <div class="spinner"></div>
+      <p>Generating tables…</p>
+    </div>
+
+    <!-- Tables -->
+    <div id="tablesContainer"></div>
   </div>
 
-  <!-- Tables -->
-  <div id="tablesContainer"></div>
+  <!-- Reports page (Looker Studio) -->
+  <div id="pageReports" style="display:none">
+    <div class="looker-embed">
+      <iframe
+        src="https://lookerstudio.google.com/embed/reporting/723f8bae-7f3e-475c-bcbc-4bd6632049c4"
+        frameborder="0"
+        allowfullscreen
+        title="JFS Journeys — Looker Studio Report"
+      ></iframe>
+    </div>
+  </div>
 </section>
 {{end}}

@@ -399,6 +399,7 @@ async function loadTables() {
     });
     if (!res.ok) throw new Error(await res.text() || 'Failed to load tables');
     box.innerHTML = await res.text();
+    renderCharts();
   } catch (err) {
     box.innerHTML = `<div class="msg-err">${esc(err.message)}</div>`;
     currentDatesKey = '';
@@ -458,6 +459,218 @@ async function exportPNG(elId, filename) {
     a.click();
   } finally {
     actionsEls.forEach(a => a.style.display = '');
+  }
+}
+
+/* ── Line Charts ─────────────────────────────────────────── */
+const CHART_PALETTE = ['#5b93f5', '#f6a054', '#4ec479', '#9b7be8', '#f07070', '#14b8a6', '#eab308', '#ec4899'];
+const CHARTABLE_WIDGET_IDS = new Set(['upi-txn', 'active-users', 'journey-wise']);
+const chartInstances = {};
+
+function parseNumericCell(text) {
+  if (text == null) return null;
+  let s = String(text).replace(/[▲▼]/g, '').replace(/,/g, '').trim();
+  if (!s || s === '—' || s === '-') return null;
+  const neg = /^\(.+\)$/.test(s) || s.startsWith('-');
+  s = s.replace(/[()%\-+]/g, '').trim();
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*([KMB])?$/i);
+  if (!m) return null;
+  let v = parseFloat(m[1]);
+  const suf = (m[2] || '').toUpperCase();
+  if (suf === 'K') v *= 1e3;
+  else if (suf === 'M') v *= 1e6;
+  else if (suf === 'B') v *= 1e9;
+  return neg ? -v : v;
+}
+
+function isDateLikeHeader(h) {
+  return /^date$/i.test(String(h || '').trim());
+}
+
+function extractChartSeriesFromTable(tableEl) {
+  const firstBody = tableEl.querySelector('tbody');
+  const thead = tableEl.querySelector('thead');
+  if (!firstBody || !thead) return null;
+
+  const headers = Array.from(thead.querySelectorAll('th')).map(th => th.textContent.trim());
+  if (headers.length < 2 || !isDateLikeHeader(headers[0])) return null;
+
+  const rows = Array.from(firstBody.querySelectorAll('tr')).filter(tr => !tr.classList.contains('section-hdr'));
+  if (rows.length === 0) return null;
+
+  const labels = [];
+  const dataCols = [];
+  const keepCol = headers.map((h, i) => {
+    if (i === 0) return false;
+    return !/%/i.test(h) && !/change/i.test(h);
+  });
+
+  for (let i = 1; i < headers.length; i++) {
+    if (keepCol[i]) dataCols.push({ header: headers[i], values: [] });
+  }
+
+  for (const tr of rows) {
+    const cells = Array.from(tr.querySelectorAll('td'));
+    if (cells.length < headers.length) continue;
+    labels.push(cells[0].textContent.trim());
+    let di = 0;
+    for (let i = 1; i < headers.length; i++) {
+      if (!keepCol[i]) continue;
+      dataCols[di].values.push(parseNumericCell(cells[i].textContent));
+      di++;
+    }
+  }
+
+  if (labels.length < 2 || dataCols.length === 0) return null;
+  return { labels, datasets: dataCols };
+}
+
+function renderCharts() {
+  if (typeof Chart === 'undefined') return;
+  const sections = document.querySelectorAll('#tablesContainer .table-section');
+  sections.forEach(section => {
+    const id = section.id.replace(/^widget-/, '');
+    if (!CHARTABLE_WIDGET_IDS.has(id)) return;
+
+    const tableEl = section.querySelector('.table-wrap table');
+    if (!tableEl) return;
+    const series = extractChartSeriesFromTable(tableEl);
+    if (!series) return;
+
+    section.querySelector('.chart-card')?.remove();
+    if (chartInstances[id]) { try { chartInstances[id].destroy(); } catch (_) {} delete chartInstances[id]; }
+
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = dark ? '#e2e8f0' : '#1e293b';
+    const gridColor = dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
+
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    card.id = 'chart-card-' + id;
+    card.innerHTML = `
+      <div class="chart-toolbar">
+        <span class="chart-title">Trend</span>
+        <div class="chart-export" data-widget-id="${esc(id)}">
+          <span class="action-btn chart-export-btn" role="button" onclick="toggleChartExportMenu('${esc(id)}', event)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Export PNG
+            <svg class="caret" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="10" height="10"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/></svg>
+          </span>
+          <div class="chart-export-menu" id="chart-menu-${esc(id)}">
+            <span role="button" onclick="exportChartOnly('${esc(id)}', event)">Chart only</span>
+            <span role="button" onclick="exportChartCard('${esc(id)}', event)">Full card</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="chart-canvas-${esc(id)}"></canvas></div>
+    `;
+    const tableCenter = section.querySelector('.table-center');
+    section.insertBefore(card, tableCenter);
+
+    const datasets = series.datasets.map((ds, i) => {
+      const color = CHART_PALETTE[i % CHART_PALETTE.length];
+      return {
+        label: ds.header,
+        data: ds.values,
+        borderColor: color,
+        backgroundColor: color + '22',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        tension: 0.25,
+        spanGaps: true,
+        fill: false,
+      };
+    });
+
+    const ctx = document.getElementById('chart-canvas-' + id).getContext('2d');
+    chartInstances[id] = new Chart(ctx, {
+      type: 'line',
+      data: { labels: series.labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 250 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: textColor, usePointStyle: true, boxWidth: 8 } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ${formatChartNumber(ctx.parsed.y)}`,
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: textColor }, grid: { color: gridColor } },
+          y: {
+            ticks: { color: textColor, callback: (v) => formatChartNumber(v) },
+            grid: { color: gridColor },
+            beginAtZero: true,
+          }
+        }
+      }
+    });
+  });
+}
+
+function formatChartNumber(v) {
+  if (v == null || isNaN(v)) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return (v / 1e9).toFixed(abs >= 1e10 ? 0 : 1) + 'B';
+  if (abs >= 1e6) return (v / 1e6).toFixed(abs >= 1e7 ? 0 : 1) + 'M';
+  if (abs >= 1e3) return (v / 1e3).toFixed(abs >= 1e4 ? 0 : 1) + 'K';
+  return String(Math.round(v * 100) / 100);
+}
+
+function toggleChartExportMenu(widgetId, ev) {
+  ev?.stopPropagation();
+  document.querySelectorAll('.chart-export-menu.open').forEach(el => {
+    if (el.id !== 'chart-menu-' + widgetId) el.classList.remove('open');
+  });
+  document.getElementById('chart-menu-' + widgetId)?.classList.toggle('open');
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.chart-export')) {
+    document.querySelectorAll('.chart-export-menu.open').forEach(el => el.classList.remove('open'));
+  }
+});
+
+function exportChartOnly(widgetId, ev) {
+  ev?.stopPropagation();
+  document.getElementById('chart-menu-' + widgetId)?.classList.remove('open');
+  const chart = chartInstances[widgetId];
+  if (!chart) return;
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const url = chart.toBase64Image('image/png', 1, dark ? '#1e293b' : '#ffffff');
+  const a = document.createElement('a');
+  a.download = 'chart-' + widgetId + '.png';
+  a.href = url;
+  a.click();
+}
+
+async function exportChartCard(widgetId, ev) {
+  ev?.stopPropagation();
+  document.getElementById('chart-menu-' + widgetId)?.classList.remove('open');
+  const section = document.getElementById('widget-' + widgetId);
+  if (!section || typeof html2canvas === 'undefined') return;
+  const card = section.querySelector('.chart-card');
+  if (!card) return;
+  const actions = card.querySelector('.chart-export');
+  if (actions) actions.style.visibility = 'hidden';
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  try {
+    const canvas = await html2canvas(card, {
+      backgroundColor: dark ? '#1e293b' : '#ffffff',
+      scale: 2,
+      useCORS: true
+    });
+    const a = document.createElement('a');
+    a.download = 'chart-card-' + widgetId + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  } finally {
+    if (actions) actions.style.visibility = '';
   }
 }
 
